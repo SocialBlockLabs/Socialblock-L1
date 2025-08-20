@@ -3,6 +3,7 @@ services:
     build: ./devnet/kvstore
     container_name: sblk-node
     ports: ["26657:26657","26656:26656"]
+    restart: unless-stopped
 
   db:
     image: postgres:15
@@ -16,7 +17,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 3s
-      retries: 30
+      retries: 40
     restart: unless-stopped
 
   indexer:
@@ -37,13 +38,19 @@ services:
       - ARP_AGENT_API_KEY=${ARP_AGENT_API_KEY}
       - SBLK_RPC=${RPC_HTTP}
     ports: ["8080:8080"]
-    depends_on: [node]
+    depends_on:
+      node:
+        condition: service_started
+    restart: unless-stopped
 
   explorer:
     image: nginx:alpine
     volumes: ["./explorer/pingpub:/usr/share/nginx/html:ro"]
     ports: ["8088:80"]
-    depends_on: [node]
+    depends_on:
+      node:
+        condition: service_started
+    restart: unless-stopped
 
 volumes:
   db_data:
