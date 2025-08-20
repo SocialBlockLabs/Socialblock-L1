@@ -32,16 +32,20 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  ai-arp-agent:
-    build: ./ai/arp-agent
-    environment:
-      - ARP_AGENT_API_KEY=${ARP_AGENT_API_KEY}
-      - SBLK_RPC=${RPC_HTTP}
-    ports: ["8080:8080"]
-    depends_on:
-      node:
-        condition: service_started
-    restart: unless-stopped
+ai-arp-agent:
+  build: ./ai/arp-agent
+  environment:
+    - ARP_AGENT_API_KEY=${ARP_AGENT_API_KEY}
+    - ARP_AGENT_DB_URL=${ARP_AGENT_DB_URL}
+    - SBLK_RPC=${RPC_HTTP}
+  ports: ["8080:8080"]
+  depends_on:
+    db:
+      condition: service_healthy
+    node:
+      condition: service_started
+  restart: unless-stopped
+
 
   explorer:
     image: nginx:alpine
