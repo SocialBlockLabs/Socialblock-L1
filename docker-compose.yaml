@@ -2,7 +2,9 @@ services:
   node:
     build: ./devnet/kvstore
     container_name: sblk-node
-    ports: ["26657:26657","26656:26656"]
+    ports:
+      - "26657:26657"
+      - "26656:26656"
     restart: unless-stopped
 
   db:
@@ -11,8 +13,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    ports: ["5432:5432"]
-    volumes: ["db_data:/var/lib/postgresql/data"]
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -23,8 +27,8 @@ services:
   indexer:
     build: ./indexer/event-indexer
     environment:
-      - INDEXER_RPC_WS=${RPC_WS}
-      - INDEXER_DB_URL=${INDEXER_DB_URL}
+      INDEXER_RPC_WS: ${RPC_WS}
+      INDEXER_DB_URL: ${INDEXER_DB_URL}
     depends_on:
       db:
         condition: service_healthy
@@ -32,25 +36,27 @@ services:
         condition: service_started
     restart: unless-stopped
 
-ai-arp-agent:
-  build: ./ai/arp-agent
-  environment:
-    - ARP_AGENT_API_KEY=${ARP_AGENT_API_KEY}
-    - ARP_AGENT_DB_URL=${ARP_AGENT_DB_URL}
-    - SBLK_RPC=${RPC_HTTP}
-  ports: ["8080:8080"]
-  depends_on:
-    db:
-      condition: service_healthy
-    node:
-      condition: service_started
-  restart: unless-stopped
-
+  ai-arp-agent:
+    build: ./ai/arp-agent
+    environment:
+      ARP_AGENT_API_KEY: ${ARP_AGENT_API_KEY}
+      ARP_AGENT_DB_URL: ${ARP_AGENT_DB_URL}
+      SBLK_RPC: ${RPC_HTTP}
+    ports:
+      - "8080:8080"
+    depends_on:
+      node:
+        condition: service_started
+      db:
+        condition: service_healthy
+    restart: unless-stopped
 
   explorer:
     image: nginx:alpine
-    volumes: ["./explorer/pingpub:/usr/share/nginx/html:ro"]
-    ports: ["8088:80"]
+    volumes:
+      - ./explorer/pingpub:/usr/share/nginx/html:ro
+    ports:
+      - "8088:80"
     depends_on:
       node:
         condition: service_started
