@@ -3,6 +3,7 @@ services:
     build: ./devnet/kvstore
     container_name: sblk-node
     ports: ["26657:26657","26656:26656"]
+
   db:
     image: postgres:15
     environment:
@@ -10,13 +11,26 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports: ["5432:5432"]
-    volumes: [ "db_data:/var/lib/postgresql/data" ]
+    volumes: ["db_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
   indexer:
     build: ./indexer/event-indexer
     environment:
       - INDEXER_RPC_WS=${RPC_WS}
       - INDEXER_DB_URL=${INDEXER_DB_URL}
-    depends_on: [node, db]
+    depends_on:
+      db:
+        condition: service_healthy
+      node:
+        condition: service_started
+    restart: unless-stopped
+
   ai-arp-agent:
     build: ./ai/arp-agent
     environment:
@@ -24,10 +38,12 @@ services:
       - SBLK_RPC=${RPC_HTTP}
     ports: ["8080:8080"]
     depends_on: [node]
+
   explorer:
     image: nginx:alpine
-    volumes: [ "./explorer/pingpub:/usr/share/nginx/html:ro" ]
+    volumes: ["./explorer/pingpub:/usr/share/nginx/html:ro"]
     ports: ["8088:80"]
     depends_on: [node]
+
 volumes:
   db_data:
