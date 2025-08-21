@@ -1,13 +1,39 @@
 #!/usr/bin/env bash
-set -e
-ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )/.." && pwd )"
-cd "$ROOT_DIR"
-case "$1" in
-  start)   cp -n .env.example .env || true; docker compose up --build -d ;;
-  stop)    docker compose down ;;
-  restart) docker compose down && docker compose up --build -d ;;
-  reset)   docker compose down -v ;;
-  status)  docker compose ps; echo "RPC: http://localhost:26657   Agent: http://localhost:8080   Explorer: http://localhost:8088" ;;
-  logs)    shift || true; docker compose logs -f ${1:-node} ;;
-  *)       echo "Usage: $0 {start|stop|restart|reset|status|logs}"; exit 1 ;;
+set -euo pipefail
+
+usage() {
+  echo "Usage: $0 [start|stop|reset|status|logs [svc]|fund <addr> <amountDenom>|keys]"
+  exit 1
+}
+
+cmd="${1:-}"; shift || true
+
+case "${cmd}" in
+  start)
+    docker compose up --build -d
+    ;;
+  stop)
+    docker compose down
+    ;;
+  reset)
+    docker compose down -v
+    ;;
+  status)
+    curl -s http://localhost:26657/status | jq '.result.sync_info.latest_block_height'
+    ;;
+  logs)
+    svc="${1:-node}"
+    docker compose logs -f "$svc"
+    ;;
+  fund)
+    addr="${1:-}"; amt="${2:-}"
+    if [ -z "$addr" ] || [ -z "$amt" ]; then usage; fi
+    docker compose exec -T node socialblockd tx bank send faucet "$addr" "$amt" --keyring-backend test --chain-id socialblock-devnet-1 --yes
+    ;;
+  keys)
+    docker compose exec -T node socialblockd keys list --keyring-backend test
+    ;;
+  *)
+    usage
+    ;;
 esac
