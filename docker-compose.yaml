@@ -2,11 +2,20 @@ version: "3.9"
 
 services:
   node:
-    build: ./devnet/kvstore
+    build: ./chains/sblk
     container_name: sblk-node
+    environment:
+      CHAIN_ID: socialblock-devnet-1
+      MONIKER: sblk-devnet
+      MIN_GAS_PRICE: 0.025usblk
     ports:
-      - "26657:26657"
-      - "26656:26656"
+      - "26657:26657"   # RPC
+      - "26656:26656"   # P2P
+      - "1317:1317"     # REST
+      - "9090:9090"     # gRPC
+    volumes:
+      - sblkdata:/home/appuser/.socialblockd
+    restart: unless-stopped
 
   db:
     image: postgres:15
@@ -57,3 +66,4 @@ services:
 
 volumes:
   db_data:
+  sblkdata:
