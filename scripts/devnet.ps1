@@ -1,16 +1,32 @@
 param(
-  [Parameter(Position=0,Mandatory=$true)]
-  [ValidateSet("start","stop","restart","reset","status","logs")]
-  [string]$cmd,
-  [string]$svc = "node"
+  [Parameter(Position=0)]
+  [string]$cmd = "help",
+  [Parameter(Position=1)]
+  [string]$arg1,
+  [Parameter(Position=2)]
+  [string]$arg2
 )
-Set-Location (Split-Path -Parent $MyInvocation.MyCommand.Path) | Out-Null
-Set-Location ..
+
 switch ($cmd) {
-  "start"   { if (-Not (Test-Path ".env")) { Copy-Item ".env.example" ".env" -Force }; docker compose up --build -d }
-  "stop"    { docker compose down }
-  "restart" { docker compose down; docker compose up --build -d }
-  "reset"   { docker compose down -v }
-  "status"  { docker compose ps; Write-Host "RPC: http://localhost:26657   Agent: http://localhost:8080   Explorer: http://localhost:8088" }
-  "logs"    { docker compose logs -f $svc }
+  "start" { docker compose up --build -d }
+  "stop"  { docker compose down }
+  "reset" { docker compose down -v }
+  "status" {
+    try {
+      (Invoke-WebRequest -UseBasicParsing http://localhost:26657/status).Content |
+        ConvertFrom-Json | ForEach-Object { $_.result.sync_info.latest_block_height }
+    } catch {
+      Write-Host "Node not responding on 26657"; exit 1
+    }
+  }
+  "logs"  {
+    $svc = $arg1; if (-not $svc) { $svc = "node" }
+    docker compose logs -f $svc
+  }
+  "fund" {
+    if (-not $arg1 -or -not $arg2) { Write-Host "Usage: ./scripts/devnet.ps1 fund <bech32-address> <amountDenom>"; exit 1 }
+    docker compose exec -T node socialblockd tx bank send faucet $arg1 $arg2 --keyring-backend test --chain-id socialblock-devnet-1 --yes
+  }
+  "keys" { docker compose exec -T node socialblockd keys list --keyring-backend test }
+  default { Write-Host "Usage: ./scripts/devnet.ps1 [start|stop|reset|status|logs [svc]|fund <addr> <amountDenom>|keys]" }
 }
