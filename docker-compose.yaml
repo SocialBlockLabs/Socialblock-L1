@@ -22,8 +22,8 @@ volumes:
 indexer:
 build: ./indexer/event-indexer
 environment:
-- INDEXER_RPC_WS: ws://node:26657/websocket
-- INDEXER_DB_URL= : ${INDEXER_DB_URL}
+INDEXER_RPC_WS: ${RPC_WS}
+      INDEXER_DB_URL: ${INDEXER_DB_URL}
 depends_on:
 - node
 - db
