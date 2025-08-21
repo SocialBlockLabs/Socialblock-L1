@@ -1,66 +1,59 @@
+version: "3.9"
+
 services:
-- "26657:26657"
-- "26656:26656"
-- "1317:1317"
-- "9090:9090"
-volumes:
-- sblkdata:/home/appuser/.simapp
+  node:
+    build: ./devnet/kvstore
+    container_name: sblk-node
+    ports:
+      - "26657:26657"
+      - "26656:26656"
 
+  db:
+    image: postgres:15
+    container_name: sblk-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: unless-stopped
 
-db:
-image: postgres:15
-environment:
-POSTGRES_USER: ${POSTGRES_USER}
-POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-POSTGRES_DB: ${POSTGRES_DB}
-ports:
-- "5432:5432"
-volumes:
-- db_data:/var/lib/postgresql/data
-
-
-indexer:
-build: ./indexer/event-indexer
-environment:
-INDEXER_RPC_WS: ${RPC_WS}
+  indexer:
+    build: ./indexer/event-indexer
+    container_name: sblk-indexer
+    environment:
+      INDEXER_RPC_WS: ${RPC_WS}
       INDEXER_DB_URL: ${INDEXER_DB_URL}
-depends_on:
-- node
-- db
+    depends_on:
+      - node
+      - db
+    restart: unless-stopped
 
+  ai-arp-agent:
+    build: ./ai/arp-agent
+    container_name: sblk-arp-agent
+    environment:
+      ARP_AGENT_API_KEY: ${ARP_AGENT_API_KEY}
+      SBLK_RPC: ${RPC_HTTP}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - node
+    restart: unless-stopped
 
-ai-arp-agent:
-build: ./ai/arp-agent
-environment:
-- ARP_AGENT_API_KEY: ${ARP_AGENT_API_KEY}
-- ARP_AGENT_DB_URL: ${ARP_AGENT_DB_URL}
-- SBLK_RPC: http://node:26657
-ports:
-- "8080:8080"
-depends_on:
-- node
-
-
-explorer:
-image: nginx:alpine
-volumes:
-- ./explorer/pingpub:/usr/share/nginx/html:ro
-ports:
-- "8088:80"
-depends_on:
-- node
-
-
-# Optional fallback to CometBFT kvstore (use with: `docker compose --profile kv up`)
-kvstore:
-build: ./devnet/kvstore
-container_name: sblk-kvstore
-profiles: ["kv"]
-ports:
-- "26657:26657"
-- "26656:26656"
-
+  explorer:
+    image: nginx:alpine
+    container_name: sblk-explorer
+    volumes:
+      - ./explorer/pingpub:/usr/share/nginx/html:ro
+    ports:
+      - "8088:80"
+    depends_on:
+      - node
+    restart: unless-stopped
 
 volumes:
-db_data:
-sblkdata:
+  db_data:
