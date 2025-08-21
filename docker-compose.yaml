@@ -1,66 +1,66 @@
 services:
-  node:
-    build: ./devnet/kvstore
-    container_name: sblk-node
-    ports:
-      - "26657:26657"
-      - "26656:26656"
-    restart: unless-stopped
+- "26657:26657"
+- "26656:26656"
+- "1317:1317"
+- "9090:9090"
+volumes:
+- sblkdata:/home/appuser/.simapp
 
-  db:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
-    ports:
-      - "5432:5432"
-    volumes:
-      - db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
-      interval: 5s
-      timeout: 3s
-      retries: 40
-    restart: unless-stopped
 
-  indexer:
-    build: ./indexer/event-indexer
-    environment:
-      INDEXER_RPC_WS: ${RPC_WS}
-      INDEXER_DB_URL: ${INDEXER_DB_URL}
-    depends_on:
-      db:
-        condition: service_healthy
-      node:
-        condition: service_started
-    restart: unless-stopped
+db:
+image: postgres:15
+environment:
+POSTGRES_USER: ${POSTGRES_USER}
+POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+POSTGRES_DB: ${POSTGRES_DB}
+ports:
+- "5432:5432"
+volumes:
+- db_data:/var/lib/postgresql/data
 
-  ai-arp-agent:
-    build: ./ai/arp-agent
-    environment:
-      ARP_AGENT_API_KEY: ${ARP_AGENT_API_KEY}
-      ARP_AGENT_DB_URL: ${ARP_AGENT_DB_URL}
-      SBLK_RPC: ${RPC_HTTP}
-    ports:
-      - "8080:8080"
-    depends_on:
-      node:
-        condition: service_started
-      db:
-        condition: service_healthy
-    restart: unless-stopped
 
-  explorer:
-    image: nginx:alpine
-    volumes:
-      - ./explorer/pingpub:/usr/share/nginx/html:ro
-    ports:
-      - "8088:80"
-    depends_on:
-      node:
-        condition: service_started
-    restart: unless-stopped
+indexer:
+build: ./indexer/event-indexer
+environment:
+- INDEXER_RPC_WS: ws://node:26657/websocket
+- INDEXER_DB_URL= : ${INDEXER_DB_URL}
+depends_on:
+- node
+- db
+
+
+ai-arp-agent:
+build: ./ai/arp-agent
+environment:
+- ARP_AGENT_API_KEY: ${ARP_AGENT_API_KEY}
+- ARP_AGENT_DB_URL: ${ARP_AGENT_DB_URL}
+- SBLK_RPC: http://node:26657
+ports:
+- "8080:8080"
+depends_on:
+- node
+
+
+explorer:
+image: nginx:alpine
+volumes:
+- ./explorer/pingpub:/usr/share/nginx/html:ro
+ports:
+- "8088:80"
+depends_on:
+- node
+
+
+# Optional fallback to CometBFT kvstore (use with: `docker compose --profile kv up`)
+kvstore:
+build: ./devnet/kvstore
+container_name: sblk-kvstore
+profiles: ["kv"]
+ports:
+- "26657:26657"
+- "26656:26656"
+
 
 volumes:
-  db_data:
+db_data:
+sblkdata:
