@@ -21,7 +21,7 @@ RUN make build
 FROM debian:bookworm-slim
 # Basic runtime deps + jq for genesis patching if ever needed
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates jq bash curl && \
+    ca-certificates jq bash curl diffutils && \
     rm -rf /var/lib/apt/lists/*
 
 # Rename simd to socialblockd for consistency with our stack
@@ -31,6 +31,8 @@ COPY --from=builder /src/build/simd /usr/local/bin/socialblockd
 USER root
 ENV HOME=/root
 ENV DAEMON_HOME=/root/.simapp
+COPY scripts/genesis_patch.sh /usr/local/bin/genesis_patch.sh
+RUN chmod +x /usr/local/bin/genesis_patch.sh
 
 # Bake the entrypoint script into the image (no CRLF issues)
 RUN bash -lc 'cat > /entrypoint.sh << "EOS"\n\
@@ -47,9 +49,8 @@ if [ ! -d \"$APP_HOME/config\" ]; then\n\
   echo \"[init] initializing chain at $APP_HOME ...\"\n\
   socialblockd init \"$MONIKER\" --chain-id \"$CHAIN_ID\" --home \"$APP_HOME\" --default-denom \"$DENOM\"\n\
 \n\
-  # Patch genesis denominations to usblk\n\
-  GENESIS=\"$APP_HOME/config/genesis.json\"\n\
-  jq \".app_state.staking.params.bond_denom=\\\"usblk\\\" | .app_state.mint.params.mint_denom=\\\"usblk\\\" | .app_state.gov.params.min_deposit |= map(.denom=\\\"usblk\\\") | .app_state.crisis.constant_fee.denom=\\\"usblk\\\"\" \"$GENESIS\" > \"$GENESIS.tmp\" && mv \"$GENESIS.tmp\" \"$GENESIS\"\n\
+  # Patch genesis denominations via helper script\n\
+  GENESIS="$APP_HOME/config/genesis.json" DENOM="$DENOM" /usr/local/bin/genesis_patch.sh\n\
 \n\
   # Deterministic dev keys\n\
   yes | socialblockd keys add validator --keyring-backend test --home \"$APP_HOME\"\n\
