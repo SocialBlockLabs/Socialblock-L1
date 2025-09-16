@@ -47,6 +47,10 @@ if [ ! -d \"$APP_HOME/config\" ]; then\n\
   echo \"[init] initializing chain at $APP_HOME ...\"\n\
   socialblockd init \"$MONIKER\" --chain-id \"$CHAIN_ID\" --home \"$APP_HOME\" --default-denom \"$DENOM\"\n\
 \n\
+  # Patch genesis denominations to usblk\n\
+  GENESIS=\"$APP_HOME/config/genesis.json\"\n\
+  jq \".app_state.staking.params.bond_denom=\\\"usblk\\\" | .app_state.mint.params.mint_denom=\\\"usblk\\\" | .app_state.gov.params.min_deposit |= map(.denom=\\\"usblk\\\") | .app_state.crisis.constant_fee.denom=\\\"usblk\\\"\" \"$GENESIS\" > \"$GENESIS.tmp\" && mv \"$GENESIS.tmp\" \"$GENESIS\"\n\
+\n\
   # Deterministic dev keys\n\
   yes | socialblockd keys add validator --keyring-backend test --home \"$APP_HOME\"\n\
   yes | socialblockd keys add faucet    --keyring-backend test --home \"$APP_HOME\"\n\
@@ -60,7 +64,7 @@ if [ ! -d \"$APP_HOME/config\" ]; then\n\
   socialblockd add-genesis-account \"$(socialblockd keys show bob       -a --keyring-backend test --home \"$APP_HOME\")\"   100000000$DENOM --home \"$APP_HOME\"\n\
 \n\
   # Create validator and include gentx\n\
-  socialblockd gentx validator 70000000000$DENOM --chain-id \"$CHAIN_ID\" --keyring-backend test --home \"$APP_HOME\"\n\
+  socialblockd gentx validator 100000000000usblk --chain-id \"$CHAIN_ID\" --keyring-backend test --home \"$APP_HOME\"\n\
   socialblockd collect-gentxs --home \"$APP_HOME\"\n\
 \n\
   # Open RPC/API/GRPC and set min-gas\n\
