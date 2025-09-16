@@ -1,20 +1,133 @@
 version: "3.9"
 
+networks:
+  sblk-net:
+    name: sblk-net
+
+volumes:
+  db_data:
+  sblk-seed-1:
+  sblk-val-1:
+  sblk-val-2:
+  sblk-val-3:
+  sblk-val-4:
+
 services:
-  node:
+  seed-1:
     build: ./chains/sblk
-    container_name: sblk-node
+    container_name: sblk-seed-1
     environment:
-      CHAIN_ID: socialblock-devnet-1
-      MONIKER: sblk-devnet
+      CHAIN_ID: socialblock-testnet-1
+      MONIKER: seed-1
       MIN_GAS_PRICE: 0.025usblk
-    ports:
-      - "26657:26657"   # RPC
-      - "26656:26656"   # P2P
-      - "1317:1317"     # REST
-      - "9090:9090"     # gRPC
+    networks:
+      - sblk-net
     volumes:
-      - sblkdata:/home/appuser/.socialblockd
+      - sblk-seed-1:/root/.simapp
+    ports:
+      - "26656:26656" # P2P
+    restart: unless-stopped
+
+  val-1:
+    build: ./chains/sblk
+    container_name: sblk-val-1
+    environment:
+      CHAIN_ID: socialblock-testnet-1
+      MONIKER: val-1
+      MIN_GAS_PRICE: 0.025usblk
+      PERSISTENT_PEERS: ${PERSISTENT_PEERS}
+    networks:
+      - sblk-net
+    volumes:
+      - sblk-val-1:/root/.simapp
+    depends_on:
+      - seed-1
+    ports:
+      - "26657:26657" # RPC
+      - "26666:26656" # P2P
+      - "1317:1317"   # REST
+      - "9090:9090"   # gRPC
+    restart: unless-stopped
+
+  val-2:
+    build: ./chains/sblk
+    container_name: sblk-val-2
+    environment:
+      CHAIN_ID: socialblock-testnet-1
+      MONIKER: val-2
+      MIN_GAS_PRICE: 0.025usblk
+      PERSISTENT_PEERS: ${PERSISTENT_PEERS}
+    networks:
+      - sblk-net
+    volumes:
+      - sblk-val-2:/root/.simapp
+    depends_on:
+      - seed-1
+    ports:
+      - "26659:26657" # RPC
+      - "26667:26656" # P2P
+      - "1318:1317"   # REST
+      - "9091:9090"   # gRPC
+    restart: unless-stopped
+
+  val-3:
+    build: ./chains/sblk
+    container_name: sblk-val-3
+    environment:
+      CHAIN_ID: socialblock-testnet-1
+      MONIKER: val-3
+      MIN_GAS_PRICE: 0.025usblk
+      PERSISTENT_PEERS: ${PERSISTENT_PEERS}
+    networks:
+      - sblk-net
+    volumes:
+      - sblk-val-3:/root/.simapp
+    depends_on:
+      - seed-1
+    ports:
+      - "26661:26657" # RPC
+      - "26668:26656" # P2P
+      - "1319:1317"   # REST
+      - "9092:9090"   # gRPC
+    restart: unless-stopped
+
+  val-4:
+    build: ./chains/sblk
+    container_name: sblk-val-4
+    environment:
+      CHAIN_ID: socialblock-testnet-1
+      MONIKER: val-4
+      MIN_GAS_PRICE: 0.025usblk
+      PERSISTENT_PEERS: ${PERSISTENT_PEERS}
+    networks:
+      - sblk-net
+    volumes:
+      - sblk-val-4:/root/.simapp
+    depends_on:
+      - seed-1
+    ports:
+      - "26663:26657" # RPC
+      - "26669:26656" # P2P
+      - "1320:1317"   # REST
+      - "9093:9090"   # gRPC
+    restart: unless-stopped
+
+  faucet:
+    build: ./faucet
+    container_name: sblk-faucet
+    environment:
+      RPC_HTTP: http://val-1:26657
+      CHAIN_ID: socialblock-testnet-1
+      DENOM: usblk
+      BECH32_PREFIX: cosmos
+      GAS_PRICE: 0.025usblk
+      FAUCET_MNEMONIC: ${FAUCET_MNEMONIC}
+    networks:
+      - sblk-net
+    ports:
+      - "8000:8000"
+    depends_on:
+      - val-1
     restart: unless-stopped
 
   db:
@@ -24,6 +137,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    networks:
+      - sblk-net
     ports:
       - "5432:5432"
     volumes:
@@ -36,8 +151,10 @@ services:
     environment:
       INDEXER_RPC_WS: ${RPC_WS}
       INDEXER_DB_URL: ${INDEXER_DB_URL}
+    networks:
+      - sblk-net
     depends_on:
-      - node
+      - val-1
       - db
     restart: unless-stopped
 
@@ -47,23 +164,23 @@ services:
     environment:
       ARP_AGENT_API_KEY: ${ARP_AGENT_API_KEY}
       SBLK_RPC: ${RPC_HTTP}
+    networks:
+      - sblk-net
     ports:
       - "8080:8080"
     depends_on:
-      - node
+      - val-1
     restart: unless-stopped
 
   explorer:
     image: nginx:alpine
     container_name: sblk-explorer
+    networks:
+      - sblk-net
     volumes:
       - ./explorer/pingpub:/usr/share/nginx/html:ro
     ports:
       - "8088:80"
     depends_on:
-      - node
+      - val-1
     restart: unless-stopped
-
-volumes:
-  db_data:
-  sblkdata:
