@@ -40,7 +40,7 @@ Services:
 - Node RPC: http://localhost:26657
 - ARP Agent (FastAPI): http://localhost:8080
 - Postgres: localhost:5432
-- Explorer (static): http://localhost:8088
+- Explorer: http://localhost:8088
 
 3) Verify block production
 - Run:
@@ -89,6 +89,25 @@ Troubleshooting
 
   - Check `config/app.toml` has `minimum-gas-prices = "0.025usblk"` and RPC/API/GRPC are enabled.
   - Ensure `create_empty_blocks = true` (default) in `config.toml`.
+
+Run Explorer
+- The explorer is served by Nginx and proxies to the validator:
+  - RPC: `http://localhost:8088/rpc` → `val-1:26657`
+  - REST API: `http://localhost:8088/api` → `val-1:1317`
+  - gRPC: `grpc://localhost:8088/grpc` → `val-1:9090` (note: browsers need gRPC-Web; use server-side tools)
+
+Start just the explorer (after the validator is up):
+
+```bash
+docker compose up -d val-1 explorer
+```
+
+Health checks:
+
+```bash
+curl -s http://localhost:8088/rpc/status | jq .
+curl -s http://localhost:8088/api/cosmos/base/tendermint/v1beta1/blocks/latest | jq .
+```
 
 Testnet
 - See TESTNET.md for a multi-node layout (`seed-1`, `val-1`, `val-2`, `faucet`, `indexer`, `ai-arp-agent`) and how to join.
