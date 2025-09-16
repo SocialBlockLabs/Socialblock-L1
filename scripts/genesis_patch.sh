@@ -6,6 +6,7 @@ set -euo pipefail
 
 GENESIS_PATH="${GENESIS:-}"
 DENOM_VALUE="${DENOM:-usblk}"
+INFLATION_VALUE="${INFLATION:-0.10}"
 
 if [ -z "${GENESIS_PATH}" ]; then
   echo "GENESIS environment variable is required (path to genesis.json)" >&2
@@ -25,12 +26,25 @@ patched_tmp="${tmp_dir}/genesis.patched.json"
 # Save sorted snapshot before
 jq -S . "${GENESIS_PATH}" > "${before_sorted}"
 
-# Apply jq patches (Step A) using provided DENOM
+# Apply jq patches (Step A) using provided DENOM and target inflation
 jq --arg denom "${DENOM_VALUE}" \
-  '.app_state.staking.params.bond_denom=$denom |
-   .app_state.mint.params.mint_denom=$denom |
-   .app_state.gov.params.min_deposit |= map(.denom=$denom) |
-   .app_state.crisis.constant_fee.denom=$denom' \
+   --arg infl  "${INFLATION_VALUE}" \
+  '
+   # Denominations across modules
+   .app_state.staking.params.bond_denom = $denom |
+   .app_state.mint.params.mint_denom    = $denom |
+   .app_state.gov.params.min_deposit    |= map(.denom = $denom) |
+   .app_state.crisis.constant_fee.denom = $denom |
+
+   # Mint inflation targets (support multiple layouts; create when absent)
+   # Legacy style
+   (.app_state.mint.params.inflation         |= ("\($infl)")) |
+   (.app_state.mint.minter.inflation         |= ("\($infl)")) |
+   # v0.45 style constant inflation by pinning min/max and zero rate change
+   (.app_state.mint.params.inflation_max      = ("\($infl)")) |
+   (.app_state.mint.params.inflation_min      = ("\($infl)")) |
+   (.app_state.mint.params.inflation_rate_change = ("0.000000000000000000"))
+  ' \
   "${GENESIS_PATH}" > "${patched_tmp}"
 
 mv "${patched_tmp}" "${GENESIS_PATH}"
