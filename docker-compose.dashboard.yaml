@@ -1,0 +1,56 @@
+# Docker Compose override for SocialBlock Explorer Dashboard
+# This file extends the main docker-compose.yaml to include the dashboard service
+
+version: '3.8'
+
+services:
+  dashboard:
+    build: ./explorer/dashboard
+    ports:
+      - "8088:80"
+    environment:
+      - VITE_RPC_URL=http://node:26657
+      - VITE_ARP_AGENT_URL=http://ai-arp-agent:8080
+      - VITE_INDEXER_URL=http://indexer:3000
+      - VITE_NETWORK_ID=socialblock-devnet-1
+    depends_on:
+      - node
+      - ai-arp-agent
+      - indexer
+    networks:
+      - socialblock-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Override the existing explorer service to use the dashboard
+  explorer:
+    build: ./explorer/dashboard
+    ports:
+      - "8088:80"
+    environment:
+      - VITE_RPC_URL=http://node:26657
+      - VITE_ARP_AGENT_URL=http://ai-arp-agent:8080
+      - VITE_INDEXER_URL=http://indexer:3000
+      - VITE_NETWORK_ID=socialblock-devnet-1
+    depends_on:
+      - node
+      - ai-arp-agent
+      - indexer
+    networks:
+      - socialblock-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  socialblock-network:
+    external: true
