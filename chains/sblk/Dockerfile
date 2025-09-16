@@ -77,6 +77,9 @@ if [ ! -d \"$APP_HOME/config\" ]; then\n\
   sed -i \"s/^enable = false/enable = true/\" \"$APP\" || true\n\
   sed -i \"s#^address = \\\"tcp://127.0.0.1:1317\\\"#address = \\\"tcp://0.0.0.0:1317\\\"#\" \"$APP\" || true\n\
   sed -i \"s/^grpc-enable = false/grpc-enable = true/\" \"$APP\" || true\n\
+  if [ -n "$PERSISTENT_PEERS" ]; then
+    sed -i "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CFG" || true
+  fi
 fi\n\
 \n\
 echo \"[start] launching node with home=$APP_HOME ...\"\n\
