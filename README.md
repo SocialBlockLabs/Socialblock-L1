@@ -24,26 +24,74 @@ Features
 ├─ docker-compose.yaml     # One-command local stack
 └─ .env.example            # Environment template
 
-Quick Start (Local E2E)
+Quickstart
 Prereqs
 - Docker + Docker Compose
-- Optional for development: Go 1.21+, Node 20+, Python 3.11+
+- Windows: use Docker Desktop with WSL2 backend enabled; run commands from a WSL2 shell
+- Optional for development: Go 1.22+, Node 20+, Python 3.11+
 
 1) Configure env
    cp .env.example .env
 
 2) Launch the stack
    docker compose up --build -d
-   
+
 Services:
-- Node (CometBFT kvstore): http://localhost:26657
+- Node RPC: http://localhost:26657
 - ARP Agent (FastAPI): http://localhost:8080
 - Postgres: localhost:5432
 - Explorer (static): http://localhost:8088
 
-3) Verify it’s producing blocks
-- Open http://localhost:26657/status (height should increase)
-- Check indexer logs — it will insert new blocks into Postgres
+3) Verify block production
+- Run:
+  
+  ```bash
+  watch -n2 'curl -s http://localhost:26657/status | jq -r .result.sync_info.latest_block_height'
+  ```
+
+  Height should continuously increase (create_empty_blocks=true).
+
+4) Send a transaction and query it
+- Get Alice address:
+
+  ```bash
+  ALICE=$(docker compose exec -T node socialblockd keys show alice -a --keyring-backend test)
+  echo "$ALICE"
+  ```
+
+- Send funds from faucet to Alice:
+
+  ```bash
+  docker compose exec -T node socialblockd tx bank send faucet "$ALICE" 100000usblk \
+    --chain-id socialblock-devnet-1 --keyring-backend test --gas auto --fees 2000usblk --yes
+  ```
+
+- Query balance:
+
+  ```bash
+  docker compose exec -T node socialblockd q bank balances "$ALICE"
+  ```
+
+- Query latest block height and a recent tx via RPC:
+
+  ```bash
+  curl -s http://localhost:26657/status | jq -r .result.sync_info.latest_block_height
+  ```
+
+Troubleshooting
+- "validator set is empty after genesis" or blocks not produced:
+  - Ensure the genesis staking/mint/gov/crisis denoms are patched to `usblk`.
+  - Our image runs `scripts/genesis_patch.sh` during init; rebuild if you changed it:
+
+    ```bash
+    docker compose build node && docker compose up -d node
+    ```
+
+  - Check `config/app.toml` has `minimum-gas-prices = "0.025usblk"` and RPC/API/GRPC are enabled.
+  - Ensure `create_empty_blocks = true` (default) in `config.toml`.
+
+Testnet
+- See TESTNET.md for a multi-node layout (`seed-1`, `val-1`, `val-2`, `faucet`, `indexer`, `ai-arp-agent`) and how to join.
 
 Components
 AI ARP Agent
