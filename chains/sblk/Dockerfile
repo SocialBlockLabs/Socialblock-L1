@@ -21,7 +21,7 @@ RUN make build
 FROM debian:bookworm-slim
 # Basic runtime deps + jq for genesis patching if ever needed
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates jq bash curl && \
+    ca-certificates jq bash curl diffutils && \
     rm -rf /var/lib/apt/lists/*
 
 # Rename simd to socialblockd for consistency with our stack
@@ -31,6 +31,8 @@ COPY --from=builder /src/build/simd /usr/local/bin/socialblockd
 USER root
 ENV HOME=/root
 ENV DAEMON_HOME=/root/.simapp
+COPY scripts/genesis_patch.sh /usr/local/bin/genesis_patch.sh
+RUN chmod +x /usr/local/bin/genesis_patch.sh
 
 # Bake the entrypoint script into the image (no CRLF issues)
 RUN bash -lc 'cat > /entrypoint.sh << "EOS"\n\
@@ -47,6 +49,9 @@ if [ ! -d \"$APP_HOME/config\" ]; then\n\
   echo \"[init] initializing chain at $APP_HOME ...\"\n\
   socialblockd init \"$MONIKER\" --chain-id \"$CHAIN_ID\" --home \"$APP_HOME\" --default-denom \"$DENOM\"\n\
 \n\
+  # Patch genesis denominations via helper script\n\
+  GENESIS="$APP_HOME/config/genesis.json" DENOM="$DENOM" /usr/local/bin/genesis_patch.sh\n\
+\n\
   # Deterministic dev keys\n\
   yes | socialblockd keys add validator --keyring-backend test --home \"$APP_HOME\"\n\
   yes | socialblockd keys add faucet    --keyring-backend test --home \"$APP_HOME\"\n\
@@ -60,7 +65,7 @@ if [ ! -d \"$APP_HOME/config\" ]; then\n\
   socialblockd add-genesis-account \"$(socialblockd keys show bob       -a --keyring-backend test --home \"$APP_HOME\")\"   100000000$DENOM --home \"$APP_HOME\"\n\
 \n\
   # Create validator and include gentx\n\
-  socialblockd gentx validator 70000000000$DENOM --chain-id \"$CHAIN_ID\" --keyring-backend test --home \"$APP_HOME\"\n\
+  socialblockd gentx validator 100000000000usblk --chain-id \"$CHAIN_ID\" --keyring-backend test --home \"$APP_HOME\"\n\
   socialblockd collect-gentxs --home \"$APP_HOME\"\n\
 \n\
   # Open RPC/API/GRPC and set min-gas\n\
@@ -72,6 +77,9 @@ if [ ! -d \"$APP_HOME/config\" ]; then\n\
   sed -i \"s/^enable = false/enable = true/\" \"$APP\" || true\n\
   sed -i \"s#^address = \\\"tcp://127.0.0.1:1317\\\"#address = \\\"tcp://0.0.0.0:1317\\\"#\" \"$APP\" || true\n\
   sed -i \"s/^grpc-enable = false/grpc-enable = true/\" \"$APP\" || true\n\
+  if [ -n "$PERSISTENT_PEERS" ]; then
+    sed -i "s/^persistent_peers = .*/persistent_peers = \"$PERSISTENT_PEERS\"/" "$CFG" || true
+  fi
 fi\n\
 \n\
 echo \"[start] launching node with home=$APP_HOME ...\"\n\
