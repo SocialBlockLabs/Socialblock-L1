@@ -1,0 +1,116 @@
+version: "3.9"
+
+networks:
+  sblk-testnet:
+    name: sblk-testnet
+
+volumes:
+  sblk-seed-1:
+  sblk-val-1:
+  sblk-val-2:
+
+services:
+  seed-1:
+    build: ./chains/sblk
+    container_name: sblk-seed-1
+    environment:
+      CHAIN_ID: socialblock-testnet-1
+      MONIKER: seed-1
+      MIN_GAS_PRICE: 0.025usblk
+    networks:
+      - sblk-testnet
+    volumes:
+      - sblk-seed-1:/root/.simapp
+    ports:
+      - "26656:26656" # p2p (optional expose)
+    restart: unless-stopped
+
+  val-1:
+    build: ./chains/sblk
+    container_name: sblk-val-1
+    environment:
+      CHAIN_ID: socialblock-testnet-1
+      MONIKER: val-1
+      MIN_GAS_PRICE: 0.025usblk
+      # set via build-genesis.sh after seed ID known
+      PERSISTENT_PEERS: ${PERSISTENT_PEERS}
+    networks:
+      - sblk-testnet
+    volumes:
+      - sblk-val-1:/root/.simapp
+    depends_on:
+      - seed-1
+    restart: unless-stopped
+
+  val-2:
+    build: ./chains/sblk
+    container_name: sblk-val-2
+    environment:
+      CHAIN_ID: socialblock-testnet-1
+      MONIKER: val-2
+      MIN_GAS_PRICE: 0.025usblk
+      PERSISTENT_PEERS: ${PERSISTENT_PEERS}
+    networks:
+      - sblk-testnet
+    volumes:
+      - sblk-val-2:/root/.simapp
+    depends_on:
+      - seed-1
+    restart: unless-stopped
+
+  rpc-1:
+    image: curlimages/curl:8.10.1
+    container_name: sblk-rpc-1
+    command: ["sleep","infinity"]
+    networks:
+      - sblk-testnet
+    ports:
+      - "26657:26657"
+    depends_on:
+      - seed-1
+      - val-1
+      - val-2
+    restart: unless-stopped
+
+  faucet:
+    build: ./chains/sblk
+    container_name: sblk-faucet
+    environment:
+      CHAIN_ID: socialblock-testnet-1
+      MONIKER: faucet
+      MIN_GAS_PRICE: 0.025usblk
+      PERSISTENT_PEERS: ${PERSISTENT_PEERS}
+    networks:
+      - sblk-testnet
+    depends_on:
+      - seed-1
+    restart: unless-stopped
+
+  indexer:
+    build: ./indexer/event-indexer
+    container_name: sblk-indexer-testnet
+    environment:
+      INDEXER_RPC_WS: ${RPC_WS}
+      INDEXER_DB_URL: ${INDEXER_DB_URL}
+    networks:
+      - sblk-testnet
+    depends_on:
+      - seed-1
+      - val-1
+      - val-2
+    restart: unless-stopped
+
+  ai-arp-agent:
+    build: ./ai/arp-agent
+    container_name: sblk-arp-agent-testnet
+    environment:
+      ARP_AGENT_API_KEY: ${ARP_AGENT_API_KEY}
+      SBLK_RPC: ${RPC_HTTP}
+    networks:
+      - sblk-testnet
+    depends_on:
+      - seed-1
+      - val-1
+      - val-2
+    restart: unless-stopped
+
