@@ -1,0 +1,18 @@
+{
+  "name": "sblk-faucet",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@cosmjs/amino": "^0.32.4",
+    "@cosmjs/proto-signing": "^0.32.4",
+    "@cosmjs/stargate": "^0.32.4",
+    "bech32": "^2.0.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}
+

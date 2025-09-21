@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+    branches: ["*"]
+  pull_request:
+    branches: ["*"]
+
+jobs:
+  build-test-run:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22.x'
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Set up Buf
+        uses: bufbuild/buf-setup-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate Protos (make proto or buf generate)
+        run: |
+          set -e
+          if [ -f Makefile ] && grep -qE '^proto:' Makefile; then
+            make proto
+          elif [ -f buf.yaml ] || [ -f buf.work.yaml ]; then
+            buf generate
+          else
+            echo "No proto generation step found; skipping"
+          fi
+
+      - name: Go mod download
+        working-directory: chains/sblk
+        run: go mod download
+
+      - name: go vet
+        working-directory: chains/sblk
+        run: go vet ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.59.1
+          working-directory: chains/sblk
+          args: --timeout=5m
+        continue-on-error: true
+
+      - name: Build and start node and indexer
+        run: docker compose -f docker-compose.yaml up -d --build node indexer
+
+      - name: Wait for block height >= 3
+        run: |
+          set -e
+          for i in $(seq 1 120); do
+            HEIGHT=$(curl -s http://localhost:26657/status | jq -r '.result.sync_info.latest_block_height' | tr -d '\r' || echo 0)
+            if [ "${HEIGHT}" != "null" ] && [ -n "${HEIGHT}" ] && [ "${HEIGHT}" -ge 3 ] 2>/dev/null; then
+              echo "Height reached: ${HEIGHT}"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Timeout waiting for height >= 3"
+          docker compose -f docker-compose.yaml logs node | tail -n 200 || true
+          exit 1
+
+      - name: Teardown
+        if: always()
+        run: docker compose -f docker-compose.yaml down -v
+
